@@ -7,8 +7,8 @@ import kotlin.test.assertEquals
 //          ordering.
 // FIX: add a `sort (lhs T, rhs T) bool` function parameter to make the order of the traversal deterministic by
 
-internal class SimpleGraphTest {
-  val g = SimpleGraph.New<Char, Char>()
+internal class GraphTest {
+  val g = Graph.New<Char, Char>()
           .path('A', 'b', 'B')
           .path('A', 'c', 'C')
           .path('B', 'd', 'D')
@@ -141,10 +141,10 @@ internal class SimpleGraphTest {
   }
 
   @Test
-  fun closureFilter() {
+  fun closureReachable() {
     val actual = g.closure(
             setOf('A'),
-            filter = { path -> path.edge != 'b' }
+            reachable = { path -> if (path.edge != 'b') setOf(path.end) else setOf() }
     )
     val expected = setOf('A', 'C', 'D')
     assertEquals(expected, actual)

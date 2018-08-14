@@ -16,7 +16,7 @@ class InvalidCharacterClassRange(pattern: String, col: Int) :
                         "end char code '${pattern[col + 1]}' (${pattern[col + 1].toInt()}) ")
 
 class InvalidCaptureGroupName(pattern: String, col: Int) :
-        SyntaxError(pattern, col - 1, "invalid capture group name, must matches `[_a-zA-Z0-9]\\w*`")
+        SyntaxError(pattern, col - 1, "invalid capture group value, must matches `[_a-zA-Z0-9]\\w*`")
 
 class InvalidCaptureGroupSyntax(pattern: String, col: Int) :
         SyntaxError(pattern, col - 1, "invalid capture group syntax, must be " +

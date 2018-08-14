@@ -42,7 +42,7 @@ internal class RegexParser(val pattern: String) {
 
   // TODO: make this function also create the transitionFunction so the New state is always created
   fun newState(): Int {
-    return fsm.nfa.graph.vertices.size
+    return fsm.nfa.vertices.size
   }
 
   fun parse(): FiniteStateMachine<Int, Char> {
@@ -66,7 +66,7 @@ internal class RegexParser(val pattern: String) {
 
     val end = newState()
     for (choice in choices)
-      fsm.transition(choice, null, end)
+      fsm.path(choice, null, end)
     return end
   }
 
@@ -89,7 +89,7 @@ internal class RegexParser(val pattern: String) {
            *  start -index-> end
            *    +--------^
            */
-          fsm.transition(start, null, end)
+          fsm.path(start, null, end)
           next()
         }
 
@@ -99,8 +99,8 @@ internal class RegexParser(val pattern: String) {
            *    ^---------+
            */
           val new = newState()
-          fsm.transition(end, null, new)
-          fsm.transition(end, null, start)
+          fsm.path(end, null, new)
+          fsm.path(end, null, start)
           end = new
           next()
         }
@@ -112,9 +112,9 @@ internal class RegexParser(val pattern: String) {
            *     +--------------+
            */
           val new = newState()
-          fsm.transition(end, null, new)
-          fsm.transition(end, null, start)
-          fsm.transition(start, null, new)
+          fsm.path(end, null, new)
+          fsm.path(end, null, start)
+          fsm.path(start, null, new)
           end = new
           next()
         }
@@ -159,7 +159,7 @@ internal class RegexParser(val pattern: String) {
         if (start > end)
           throw InvalidCharacterClassRange(pattern, idx)
         for (i in startChar..endChar)
-          fsm.transition(start, i.toChar(), end)
+          fsm.path(start, i.toChar(), end)
       }
       c = peek()
     }
@@ -177,52 +177,52 @@ internal class RegexParser(val pattern: String) {
           null -> throw DanglingBackslashError(pattern, idx - 1)
 
         // escape characters
-          '0' -> fsm.transition(start, 0.toChar(), end)
-          'a' -> fsm.transition(start, 0x07.toChar(), end)
-          'e' -> fsm.transition(start, 0x1a.toChar(), end)
-          'f' -> fsm.transition(start, 0x0c.toChar(), end)
-          'n' -> fsm.transition(start, '\n', end)
-          'r' -> fsm.transition(start, '\r', end)
-          't' -> fsm.transition(start, '\t', end)
+          '0' -> fsm.path(start, 0.toChar(), end)
+          'a' -> fsm.path(start, 0x07.toChar(), end)
+          'e' -> fsm.path(start, 0x1a.toChar(), end)
+          'f' -> fsm.path(start, 0x0c.toChar(), end)
+          'n' -> fsm.path(start, '\n', end)
+          'r' -> fsm.path(start, '\r', end)
+          't' -> fsm.path(start, '\t', end)
 
         // line break
           'R' -> {
-            fsm.transition(start, '\r', end)
-            fsm.transition(start, '\n', end)
+            fsm.path(start, '\r', end)
+            fsm.path(start, '\n', end)
             val midState = newState()
-            fsm.transition(start, '\r', midState)
-            fsm.transition(midState, '\n', end)
+            fsm.path(start, '\r', midState)
+            fsm.path(midState, '\n', end)
           }
 
         // shorthands
           'd' -> {
             // [0-9]
             for (c in '0'..'9')
-              fsm.transition(start, c, end)
+              fsm.path(start, c, end)
           }
           'w' -> {
             // [_a-zA-Z0-9]
-            fsm.transition(start, '_', end)
+            fsm.path(start, '_', end)
             for (c in 'a'..'z') {
-              fsm.transition(start, c, end)
-              fsm.transition(start, c.toUpperCase(), end)
+              fsm.path(start, c, end)
+              fsm.path(start, c.toUpperCase(), end)
             }
           }
           's' -> {
             // [ \t\r\n\f]
-            fsm.transition(start, ' ', end)
-            fsm.transition(start, '\t', end)
-            fsm.transition(start, '\r', end)
-            fsm.transition(start, '\n', end)
-            fsm.transition(start, 0x0b.toChar(), end)
-            fsm.transition(start, 0x0c.toChar(), end)
+            fsm.path(start, ' ', end)
+            fsm.path(start, '\t', end)
+            fsm.path(start, '\r', end)
+            fsm.path(start, '\n', end)
+            fsm.path(start, 0x0b.toChar(), end)
+            fsm.path(start, 0x0c.toChar(), end)
           }
 
-          else -> fsm.transition(start, peek(), end)
+          else -> fsm.path(start, peek(), end)
         }
       }
 
-      else -> fsm.transition(start, peek(), end)
+      else -> fsm.path(start, peek(), end)
     }
     next()
     return end
@@ -257,10 +257,10 @@ internal class RegexParser(val pattern: String) {
     groupIndex++
 
     val groupStart = newState()
-    fsm.transition(start, null, groupStart)
+    fsm.path(start, null, groupStart)
     val groupEnd = expression(groupStart)
     val end = newState()
-    fsm.transition(groupEnd, null, end)
+    fsm.path(groupEnd, null, end)
     fsm.group(groupName, start, groupEnd)
     return end
   }

@@ -1,22 +1,35 @@
 package automaton
 
-import graph.NonDeterministicGraph
-import graph.SimpleGraph
+import graph.Graph
+import graph.Path
 
 data class FiniteStateMachine<STATE, SYMBOL>(
-        val nfaStart: STATE,
-        val nfa: NonDeterministicGraph<STATE, SYMBOL?>,
-        val groups: Map<String, Group<STATE>>
+        val nfaStart: Set<STATE>,
+        val nfa: Graph<Set<STATE>, SYMBOL?>,
+        val groups: Map<String, Group<STATE>>,
+        val epsilonPath: (Path<Set<STATE>, SYMBOL?>) -> Boolean = { path -> defaultEpsilonPath(path) },
+        val merge: (MutableMap<SYMBOL, Set<STATE>>, Path<Set<STATE>, SYMBOL?>) -> Unit = { results, path ->
+          defaultMerge(results, path)
+        }
 ) : Automaton<STATE, SYMBOL> {
 
   // Deterministic Finite Automaton
   val dfaStart: Set<STATE>
-  val dfa: SimpleGraph<Set<STATE>, SYMBOL>
+  val dfa: Graph<Set<STATE>, SYMBOL>
 
   init {
-    val newDfa = SimpleGraph.New<Set<STATE>, SYMBOL>()
+    val epsilonClosure: (Set<STATE>) -> Set<STATE> = { starts ->
+      nfa.closure(
+              starts.map { setOf(it) }.toSet(),
+              { path -> if (epsilonPath(path)) path.end.map { setOf(it) }.toSet() else setOf() }
+      ).flatten().toSet()
+    }
+    val nonEpsilonPaths: (Set<STATE>) -> Sequence<Path<Set<STATE>, SYMBOL?>> = { start ->
+      nfa.paths(start.map { setOf(it) }.toSet(), { path -> !epsilonPath(path) })
+    }
 
-    dfaStart = nfa.epsilonClosure(setOf(nfaStart))
+    val newDfa = Graph.New<Set<STATE>, SYMBOL>()
+    dfaStart = epsilonClosure(nfaStart)
     val queue = mutableListOf(dfaStart)
     while (queue.isNotEmpty()) {
       val starts = queue.removeAt(0)
@@ -24,8 +37,8 @@ data class FiniteStateMachine<STATE, SYMBOL>(
         continue
 
       val reachable: MutableMap<SYMBOL, Set<STATE>> = mutableMapOf()
-      for (path in nfa.paths(nfa.epsilonClosure(starts), { p -> p.edge != null }))
-        reachable[path.edge!!] = reachable[path.edge].orEmpty() union nfa.epsilonClosure(setOf(path.end))
+      for (path in nonEpsilonPaths(epsilonClosure(starts)))
+        merge(reachable, Path(path.start, path.edge, epsilonClosure(path.end)))
 
       for (ends in reachable.values)
         queue.add(ends)
@@ -49,22 +62,41 @@ data class FiniteStateMachine<STATE, SYMBOL>(
   }
 
   data class New<STATE, SYMBOL>(val initialState: STATE) {
-    val nfa = NonDeterministicGraph.New<STATE, SYMBOL?>()
+    val nfa = Graph.New<Set<STATE>, SYMBOL?>()
     val groups: MutableMap<String, Group<STATE>> = mutableMapOf()
-
-    init {
-      nfa.graph.vertices[initialState] = mapOf()
+    var epsilonPath: (Path<Set<STATE>, SYMBOL?>) -> Boolean = { path -> defaultEpsilonPath(path) }
+    var merge: (MutableMap<SYMBOL, Set<STATE>>, Path<Set<STATE>, SYMBOL?>) -> Unit = { results, path ->
+      defaultMerge(results, path)
     }
 
-    fun transition(start: STATE, input: SYMBOL?, end: STATE) = apply {
-      nfa.path(start, input, end)
+    init {
+      nfa.vertices[setOf(initialState)] = mapOf()
+    }
+
+    fun path(start: STATE, input: SYMBOL?, end: STATE) = apply {
+      val starts = setOf(start)
+      val ends = nfa.vertices[starts]?.get(input).orEmpty() union setOf(end)
+      nfa.path(starts, input, ends)
     }
 
     fun group(name: String, start: STATE, end: STATE) = apply {
       groups[name] = Group(start, end)
     }
 
-    fun build() = FiniteStateMachine(initialState, nfa.build(), groups)
+    fun withEpsilonTransition(function: (Path<Set<STATE>, SYMBOL?>) -> Boolean) = apply {
+      epsilonPath = function
+    }
+
+    fun withMerge(function: (MutableMap<SYMBOL, Set<STATE>>, Path<Set<STATE>, SYMBOL?>) -> Unit) = apply {
+      merge = function
+    }
+
+    fun build() = FiniteStateMachine(
+            setOf(initialState),
+            nfa.build(),
+            groups,
+            epsilonPath,
+            merge
+    )
   }
 }
-
